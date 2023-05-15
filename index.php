@@ -13,6 +13,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+error_reporting(E_ERROR);
+
 // Create the plugin's setup page
 function health_data_collector_setup_page() {
     add_options_page(
