@@ -9,6 +9,10 @@ Author URI: https://webord.de
 License: None &copy; by HeNoMedia / Webord
 */
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 // Create the plugin's setup page
 function health_data_collector_setup_page() {
     add_options_page(
@@ -92,6 +96,52 @@ function health_data_collector_website_key_callback() {
     echo "<input type='text' name='website_key' value='$website_key' />";
 }
 
+function health_data_collector_get_latest_wordpress_version() {
+    $response = wp_remote_get('https://api.wordpress.org/core/version-check/1.7/');
+
+    if (is_wp_error($response)) {
+        // Error occurred while retrieving the version
+        error_log('Health Data Collector - Error retrieving WordPress version: ' . $response->get_error_message());
+        return '';
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if (isset($data['offers'][0]['current'])) {
+        return $data['offers'][0]['current'];
+    }
+
+    return '';
+}
+
+// Retrieve the list of plugins with updates
+function health_data_collector_get_plugins_with_updates() {
+    $updates = get_plugin_updates();
+
+    $plugins_with_updates = array();
+    foreach ($updates as $update) {
+        $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $update->plugin);
+        $plugins_with_updates[] = array(
+            'name' => $plugin_data['Name'],
+            'version' => $plugin_data['Version'],
+        );
+    }
+
+    return $plugins_with_updates;
+}
+
+// Check if there are available plugin updates
+function health_data_collector_check_plugin_updates() {
+    $updates = get_plugin_updates();
+
+    if (empty($updates)) {
+        return false;
+    }
+
+    return true;
+}
+
 // Collect and send health data every hour
 function health_data_collector_collect_data() {
     // Get the saved API keys
@@ -128,10 +178,10 @@ function health_data_collector_collect_data() {
     );
 
     // Convert data to JSON
-    $json_data = json_encode($data);
+    $json_data = json_encode($health_data );
 
     // Set the webhook URL (replace 'YOUR_WEBHOOK_URL' with the actual URL)
-    $webhook_url = 'YOUR_WEBHOOK_URL';
+    $webhook_url = 'https://webhook.site/0abcd629-1f98-4997-a4c4-6b6e9d489eae';
 
     // Send data to the webhook using POST request
     $args = array(
@@ -157,27 +207,13 @@ function health_data_collector_collect_data() {
     }
 }
 
-// Retrieve the list of plugins with updates
-function health_data_collector_get_plugins_with_updates() {
-    $updates = get_plugin_updates();
-
-    $plugins_with_updates = array();
-    foreach ($updates as $update) {
-        $plugin_data = get_plugin_data(WP_PLUGIN_DIR . '/' . $update->plugin);
-        $plugins_with_updates[] = array(
-            'name' => $plugin_data['Name'],
-            'version' => $plugin_data['Version'],
-        );
-    }
-
-    return $plugins_with_updates;
-}
 
 add_action('health_data_collector_cron', 'health_data_collector_collect_data');
 
 // Schedule the data collection cron job on plugin activation
 function health_data_collector_activate() {
     wp_schedule_event(time(), 'hourly', 'health_data_collector_cron');
+
 }
 register_activation_hook(__FILE__, 'health_data_collector_activate');
 
